@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  pact:
+    image: pactfoundation/pact-broker
+    depends_on:
+      - "db"
+    environment:
+      PACT_BROKER_DATABASE_USERNAME: ${DB_USER}
+      PACT_BROKER_DATABASE_PASSWORD: ${DB_PASSWORD}
+      PACT_BROKER_DATABASE_HOST: db
+      PACT_BROKER_DATABASE_NAME: contracts
+  db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: contracts
