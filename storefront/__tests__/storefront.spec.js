@@ -4,10 +4,12 @@ const request = require('supertest');
 const path = require('path');
 const { Pact } = require("@pact-foundation/pact");
 const config = require('../config');
+const inventoryInteractions = require('./interactions/intentory');
+const walletInteractions = require('./interactions/wallet');
 const app = require('../storefront').app;
 
 describe("Storefront", () => {
-  let inventoryProvider;
+  let inventoryProvider, walletProvider;
 
   beforeAll(async (done) => {
     inventoryProvider = new Pact({
@@ -16,7 +18,17 @@ describe("Storefront", () => {
       port: 4000,
       log: path.resolve(__dirname, '../logs', 'inventory-integration.log'),
       logLevel: 'ERROR',
-      dir: path.resolve(__dirname, '../contracts'),
+      dir: path.resolve(__dirname, '../../contracts'),
+      spec: 2
+    });
+
+    walletProvider = new Pact({
+      consumer: 'Storefront',
+      provider: 'Wallet',
+      port: 5000,
+      log: path.resolve(__dirname, '../logs', 'wallet-integration.log'),
+      logLevel: 'ERROR',
+      dir: path.resolve(__dirname, '../../contracts'),
       spec: 2
     });
 
@@ -24,39 +36,36 @@ describe("Storefront", () => {
 
     await inventoryProvider
       .setup()
-      .then(() =>
-        inventoryProvider.addInteraction({
-          state: "Different items",
-          uponReceiving: "A request for an item that does not exist",
-          withRequest: {
-            method: "GET",
-            path: "/v1/inventory/1"
-          },
-          willRespondWith: {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-            body: { message: "Item not found" }
-          },
-        })
-      );
+      .then(() => Promise.all(inventoryInteractions.map(i => inventoryProvider.addInteraction(i))));
+
+    await walletProvider
+      .setup()
+      .then(() => Promise.all(walletInteractions.map(i => walletProvider.addInteraction(i))));
 
     done();
   });
 
   afterAll(async (done) => {
-    await inventoryProvider.finalize();
-    done();
+    await Promise.all([inventoryProvider.finalize(), walletProvider.finalize()])
+      .then(() => done());
   });
 
-  it("Purchase items that is not in the inventory", async (done) => {
-      request(app)
-        .post('/v1/storefront/item/1')
-        .auth('user', '1234')
-        .expect(404)
-        .then(response => {
-          const result = JSON.parse(response.body);
-          expect(result.message).toEqual("Item not found");
-          done();
-        });
-    });
+  it("Purchase an item that is not in the inventory", (done) => {
+    request(app)
+      .post('/v1/storefront/item/non-existent')
+      .auth('user_1', '1234')
+      .expect(404)
+      .then(response => {
+        const result = JSON.parse(response.body);
+        expect(result.message).toEqual("Item not found");
+      })
+      .then(() => done(), done);;
+  });
+
+  it("Purchase an item", (done) => {
+    request(app)
+      .post('/v1/storefront/item/item_1')
+      .auth('user_1', '1234')
+      .expect(201, done);
+  });
 });

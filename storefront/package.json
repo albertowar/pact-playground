@@ -23,5 +23,8 @@
     "eslint-plugin-promise": "^4.2.1",
     "jest": "^26.0.1",
     "supertest": "^4.0.2"
+  },
+  "jest": {
+    "testMatch": [ "**/?(*.)+(spec|test).[jt]s?(x)" ]
   }
 }
